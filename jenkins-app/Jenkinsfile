@@ -10,11 +10,6 @@ metadata:
       run: jnlp
 spec:
   containers:
-  - name: kubectl
-    image: joshendriks/alpine-k8s
-    command:
-    - /bin/cat
-    tty: true 
   - name: git
     image: gcr.io/cloud-builders/git
     command:
