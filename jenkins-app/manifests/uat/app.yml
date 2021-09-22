@@ -22,24 +22,8 @@ spec:
     spec:
       containers:
       - name: uat-app
-        image: gcr.io/cloudorbit/app/uat/jenkinsapp:latest
+        image: public.nexus.cams7.ml/jenkinsapp:0.0.1
         imagePullPolicy: Always
-
----
-kind: Service
-apiVersion: v1
-metadata:
-  name: uat-app
-spec:
-  selector:
-    name: uat-app
-  ports:
-    - name: port1
-      protocol: TCP
-      port: 5000
-      targetPort: 5000
-  type: LoadBalancer
-
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
@@ -53,3 +37,70 @@ spec:
     kind: Deployment
     name: uat-app
   targetCPUUtilizationPercentage: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: uat-app
+spec:
+  selector:
+    name: uat-app
+  ports:
+    - name: port1
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: uat-redirect-scheme
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+    port: "443"
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: uat-strip-path-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /jenkinsapp
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: uat-http
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`uat.cams7.ml`)
+      kind: Rule
+      middlewares:
+        - name: uat-redirect-scheme      
+      services:
+        - name: uat-app
+          port: 5000
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: uat-https
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`uat.cams7.ml`) && PathPrefix(`/jenkinsapp`)
+      kind: Rule
+      middlewares:
+        - name: uat-strip-path-prefix
+      services:
+        - name: uat-app
+          port: 5000
+  tls:
+    secretName: uat.cams7.ml

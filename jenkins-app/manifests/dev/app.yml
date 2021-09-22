@@ -22,24 +22,8 @@ spec:
     spec:
       containers:
       - name: dev-app
-        image: gcr.io/cloudorbit/app/dev/jenkinsapp:latest
+        image: public.nexus.cams7.ml/jenkinsapp:0.0.1
         imagePullPolicy: Always
-
----
-kind: Service
-apiVersion: v1
-metadata:
-  name: dev-app
-spec:
-  selector:
-    name: dev-app
-  ports:
-    - name: port1
-      protocol: TCP
-      port: 5000
-      targetPort: 5000
-  type: LoadBalancer
-
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
@@ -53,3 +37,70 @@ spec:
     kind: Deployment
     name: dev-app
   targetCPUUtilizationPercentage: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: dev-app
+spec:
+  selector:
+    name: dev-app
+  ports:
+    - name: port1
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: dev-redirect-scheme
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+    port: "443"
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: dev-strip-path-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /jenkinsapp
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-http
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`dev.cams7.ml`)
+      kind: Rule
+      middlewares:
+        - name: dev-redirect-scheme      
+      services:
+        - name: dev-app
+          port: 5000
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dev-https
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dev.cams7.ml`) && PathPrefix(`/jenkinsapp`)
+      kind: Rule
+      middlewares:
+        - name: dev-strip-path-prefix
+      services:
+        - name: dev-app
+          port: 5000
+  tls:
+    secretName: dev.cams7.ml
