@@ -4,9 +4,7 @@ pipeline {
             defaultContainer 'jnlp'
             yamlFile 'builder.yaml'
         }
-    }
-    environment {
-    }
+    }    
     stages {
         stage ('Pre Actions-Build Started') {
             steps {
